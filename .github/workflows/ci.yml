@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dropship
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d dropship"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      APP_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dropship
+      DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dropship
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dropship
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - name: Migrations are consistent and match the schema
+        run: |
+          pnpm db:check
+          pnpm db:generate
+          test -z "$(git status --porcelain packages/db/drizzle)" || { echo "::error::Schema changed without a migration. Run pnpm db:generate."; exit 1; }
+      - run: pnpm test
+      - run: pnpm build

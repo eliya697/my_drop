@@ -1,0 +1,25 @@
+# Explicit project name: compose derives it from the folder name otherwise, and non-ASCII
+# folder names produce an empty (invalid) project name.
+name: dropship
+
+# Local Postgres for development and integration tests.
+# Production runs on Supabase; migrations create an `auth.users` stub only when it does not already exist.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: dropship
+    ports:
+      - "54329:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d dropship"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:
