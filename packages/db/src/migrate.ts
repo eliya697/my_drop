@@ -5,11 +5,23 @@ import postgres from "postgres";
 
 export const MIGRATIONS_FOLDER = fileURLToPath(new URL("../drizzle", import.meta.url));
 
-/** Applies pending migrations over a single direct (non-pooled) connection. */
+/** Arbitrary constant identifying the migration lock; any process using it serializes with us. */
+const MIGRATION_LOCK_KEY = 72_616_001;
+
+/**
+ * Applies pending migrations over a single direct (non-pooled) connection. A session-level
+ * advisory lock serializes concurrent runners (parallel deploys, parallel test files): the
+ * second waits, then finds nothing left to apply.
+ */
 export async function runMigrations(directUrl: string): Promise<void> {
   const sql = postgres(directUrl, { max: 1, onnotice: () => {} });
   try {
-    await migrate(drizzle(sql), { migrationsFolder: MIGRATIONS_FOLDER });
+    await sql`select pg_advisory_lock(${MIGRATION_LOCK_KEY})`;
+    try {
+      await migrate(drizzle(sql), { migrationsFolder: MIGRATIONS_FOLDER });
+    } finally {
+      await sql`select pg_advisory_unlock(${MIGRATION_LOCK_KEY})`;
+    }
   } finally {
     await sql.end({ timeout: 5 });
   }

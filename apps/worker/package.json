@@ -12,9 +12,16 @@
     "start": "node dist/index.js",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "aliexpress:connect": "tsx --env-file-if-exists=../../.env src/cli/aliexpress-connect.ts",
+    "import:product": "tsx --env-file-if-exists=../../.env src/cli/import-product.ts",
+    "enrich:product": "tsx --env-file-if-exists=../../.env src/cli/enrich-product.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
+    "@aws-sdk/client-s3": "^3.700.0",
+    "@dropship/adapters": "workspace:*",
+    "@dropship/ai": "workspace:*",
     "@dropship/config": "workspace:*",
     "@dropship/core": "workspace:*",
     "@dropship/db": "workspace:*",
@@ -23,6 +30,8 @@
     "pg-boss": "^10.1.6",
     "pino": "^9.6.0",
     "postgres": "^3.4.5",
+    "sanitize-html": "^2.18.1",
+    "sharp": "^0.33.5",
     "zod": "^3.25.0"
   },
   "devDependencies": {

@@ -18,7 +18,14 @@
     "CREDENTIALS_ENCRYPTION_KEY",
     "HEALTH_PORT",
     "WORKER_*",
-    "FEATURE_*"
+    "FEATURE_*",
+    "TEST_DATABASE_URL",
+    "PRICING_*",
+    "AI_*",
+    "IMPORT_*",
+    "STORAGE_DRIVER",
+    "LOCAL_STORAGE_*",
+    "R2_*"
   ],
   "tasks": {
     "build": {

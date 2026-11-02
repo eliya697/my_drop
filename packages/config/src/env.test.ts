@@ -20,6 +20,13 @@ const PRODUCTION_SECRETS = {
   EMAIL_FROM: "Store <orders@example.com>",
   SENTRY_DSN: "https://key@o1.ingest.sentry.io/1",
   CREDENTIALS_ENCRYPTION_KEY: randomBytes(32).toString("base64"),
+  STORAGE_DRIVER: "r2",
+  R2_ACCOUNT_ID: "0123456789abcdef0123456789abcdef",
+  R2_ACCESS_KEY_ID: "r2-access-key-id-0123",
+  R2_SECRET_ACCESS_KEY: "r2-secret-access-key-0123456789abcdef",
+  R2_BUCKET: "dropship-media",
+  R2_PUBLIC_BASE_URL: "https://media.example.com",
+  PRICING_USD_ILS_RATE: "3.7",
 };
 
 function issuesOf(fn: () => unknown) {
@@ -55,7 +62,7 @@ describe("loadWorkerEnv", () => {
 
   it("requires every integration secret in production", () => {
     const keys = issuesOf(() => loadWorkerEnv({ ...DB, APP_ENV: "production" })).map((i) => i.key);
-    expect(keys.sort()).toEqual([...REQUIRED_IN_PRODUCTION].sort());
+    expect(keys.sort()).toEqual([...REQUIRED_IN_PRODUCTION, "STORAGE_DRIVER", "PRICING_USD_ILS_RATE"].sort());
   });
 
   it("accepts a complete production environment", () => {
@@ -110,6 +117,53 @@ describe("loadWorkerEnv", () => {
     } catch (err) {
       expect(String(err)).not.toContain(secret);
     }
+  });
+});
+
+describe("storage and import settings", () => {
+  it("defaults to local storage and Israeli imports in development", () => {
+    const env = loadWorkerEnv(DB);
+    expect(env.STORAGE_DRIVER).toBe("local");
+    expect(env.IMPORT_SHIP_TO).toBe("IL");
+    expect(env.IMPORT_MAX_SHIPPING_DAYS).toBe(30);
+  });
+
+  it("requires every R2 setting when the r2 driver is chosen outside production", () => {
+    const keys = issuesOf(() => loadWorkerEnv({ ...DB, STORAGE_DRIVER: "r2" })).map((i) => i.key);
+    expect(keys.sort()).toEqual(
+      ["R2_ACCESS_KEY_ID", "R2_ACCOUNT_ID", "R2_BUCKET", "R2_PUBLIC_BASE_URL", "R2_SECRET_ACCESS_KEY"].sort(),
+    );
+  });
+
+  it("rejects local storage in production", () => {
+    const issues = issuesOf(() =>
+      loadWorkerEnv({ ...DB, ...PRODUCTION_SECRETS, APP_ENV: "production", STORAGE_DRIVER: "local" }),
+    );
+    expect(issues.map((i) => i.key)).toEqual(["STORAGE_DRIVER"]);
+  });
+
+  it("validates the ship-to country code", () => {
+    expect(issuesOf(() => loadWorkerEnv({ ...DB, IMPORT_SHIP_TO: "isr" }))[0]?.key).toBe("IMPORT_SHIP_TO");
+  });
+});
+
+describe("pricing and AI settings", () => {
+  it("applies Israeli market defaults and realtime enrichment", () => {
+    const env = loadWorkerEnv(DB);
+    expect(env).toMatchObject({
+      PRICING_VAT_RATE: 0.18,
+      PRICING_FX_BUFFER: 0.03,
+      PRICING_PAYMENT_FEE_RATE: 0.029,
+      PRICING_PAYMENT_FEE_FIXED_MINOR: 120,
+      AI_ENRICH_MODE: "realtime",
+    });
+    expect(env.PRICING_USD_ILS_RATE).toBeUndefined();
+  });
+
+  it("rejects an implausible exchange rate", () => {
+    expect(issuesOf(() => loadWorkerEnv({ ...DB, PRICING_USD_ILS_RATE: "37" }))[0]?.key).toBe(
+      "PRICING_USD_ILS_RATE",
+    );
   });
 });
 

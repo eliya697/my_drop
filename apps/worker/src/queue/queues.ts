@@ -26,6 +26,8 @@ export const QUEUES = {
   "import.fetch": DEFAULT,
   "import.media": DEFAULT,
   "enrich.listing": ENRICH,
+  "enrich.batch.submit": CRON,
+  "enrich.batch.poll": CRON,
   "price.compute": DEFAULT,
   "publish.product": DEFAULT,
   "seo.sitemap.rebuild": DEFAULT,

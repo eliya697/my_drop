@@ -15,6 +15,20 @@
       "when": 1793112865055,
       "tag": "0001_pricing_tier_standard",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793615632293,
+      "tag": "0002_product_images_media",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793617110679,
+      "tag": "0003_ai_enrichment",
+      "breakpoints": true
     }
   ]
 }

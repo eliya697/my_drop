@@ -1,0 +1,29 @@
+{
+  "name": "@dropship/ai",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "eval:listings": "tsx --env-file-if-exists=../../.env scripts/eval-listings.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
+    "@dropship/core": "workspace:*",
+    "sanitize-html": "^2.18.1",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/sanitize-html": "^2.16.2",
+    "vitest": "^3.0.0",
+    "tsx": "^4.19.2"
+  }
+}

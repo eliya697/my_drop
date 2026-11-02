@@ -6,6 +6,7 @@ import type {
   LowestPriceVariant,
   LowestPriceVariantQuery,
   ShippingQuote,
+  ShippingQuoteQuery,
   StockCheck,
   SupplierOrder,
   SupplierProduct,
@@ -59,6 +60,13 @@ export class InMemorySupplierAdapter implements SupplierAdapter {
 
   async getProduct(externalProductId: string, _shipTo: CountryCode): Promise<SupplierProduct> {
     return structuredClone(this.requireProduct(externalProductId));
+  }
+
+  async quoteShipping(query: ShippingQuoteQuery): Promise<ShippingQuote[]> {
+    this.requireVariant(query.externalProductId, query.skuId);
+    return (this.quotes.get(query.externalProductId) ?? [])
+      .filter((q) => q.skuId === query.skuId)
+      .map((q) => structuredClone(q));
   }
 
   async getLowestPriceVariant(query: LowestPriceVariantQuery): Promise<LowestPriceVariant> {

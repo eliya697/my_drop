@@ -138,6 +138,7 @@ describe("InMemorySupplierAdapter (SupplierAdapter contract)", () => {
     attributes: {},
     variants: VARIANTS,
     sellerId: "seller-1",
+    available: true,
     raw: {},
   };
   const now = new Date("2026-10-27T12:00:00Z");

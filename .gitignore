@@ -14,3 +14,5 @@ npm-debug.log*
 pnpm-debug.log*
 .DS_Store
 Thumbs.db
+.storage/
+packages/ai/eval/results/

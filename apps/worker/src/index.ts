@@ -3,8 +3,24 @@ import { createDb } from "@dropship/db";
 import { createLogger, type Logger } from "@dropship/logger";
 import { databaseCheck, queueCheck } from "./health/checks";
 import { startHealthServer, type HealthServer } from "./health/server";
+import Anthropic from "@anthropic-ai/sdk";
+import { buildAliExpress } from "./integrations/aliexpress";
+import {
+  BATCH_POLL_QUEUE,
+  BATCH_SUBMIT_QUEUE,
+  batchPollSchema,
+  batchSubmitSchema,
+  createBatchPollHandler,
+  createBatchSubmitHandler,
+} from "./jobs/enrich-batch";
+import { createEnrichListingHandler, ENRICH_QUEUE, enrichListingSchema, PRICE_QUEUE } from "./jobs/enrich";
+import { createPriceComputeHandler, priceComputeSchema } from "./jobs/price";
+import { buildStorage } from "./integrations/storage";
 import { HEARTBEAT_QUEUE, registerHeartbeat } from "./jobs/heartbeat";
+import { createImportFetchHandler, IMPORT_FETCH_QUEUE, importFetchSchema } from "./jobs/import-fetch";
+import { createImportMediaHandler, importMediaSchema } from "./jobs/import-media";
 import { createBoss, ensureQueues } from "./queue/boss";
+import { registerJob } from "./queue/run";
 
 async function main() {
   let env;
@@ -81,6 +97,106 @@ async function main() {
   logger.info({ schema: env.WORKER_PGBOSS_SCHEMA }, "pg-boss started");
   await ensureQueues(boss, logger);
   await registerHeartbeat(boss, logger);
+
+  // ---- catalog import ----------------------------------------------------------------------
+  const storage = buildStorage(env);
+  await registerJob(
+    boss,
+    "import.media",
+    importMediaSchema,
+    createImportMediaHandler({ db: database.db, storage }),
+    {
+      logger,
+    },
+  );
+
+  const aliexpress = buildAliExpress(env, database.db, logger);
+  if ("missing" in aliexpress) {
+    // Allowed outside production only; the env schema requires these keys in production.
+    logger.warn(
+      { missing: aliexpress.missing },
+      `${IMPORT_FETCH_QUEUE} disabled: AliExpress is not configured`,
+    );
+  } else {
+    await registerJob(
+      boss,
+      IMPORT_FETCH_QUEUE,
+      importFetchSchema,
+      createImportFetchHandler({
+        db: database.db,
+        catalog: aliexpress.catalog,
+        shipTo: env.IMPORT_SHIP_TO,
+        maxShippingDays: env.IMPORT_MAX_SHIPPING_DAYS,
+        autoEnrich: env.AI_ENRICH_MODE === "realtime" && Boolean(env.ANTHROPIC_API_KEY),
+      }),
+      { logger },
+    );
+  }
+
+  // ---- AI enrichment and pricing -----------------------------------------------------------
+  await registerJob(
+    boss,
+    PRICE_QUEUE,
+    priceComputeSchema,
+    createPriceComputeHandler({
+      db: database.db,
+      market: env.PRICING_USD_ILS_RATE
+        ? {
+            fxUsdToIls: env.PRICING_USD_ILS_RATE,
+            fxBuffer: env.PRICING_FX_BUFFER,
+            vatRate: env.PRICING_VAT_RATE,
+            paymentFeeRate: env.PRICING_PAYMENT_FEE_RATE,
+            paymentFeeFixedMinor: env.PRICING_PAYMENT_FEE_FIXED_MINOR,
+          }
+        : null,
+    }),
+    { logger },
+  );
+
+  if (!env.ANTHROPIC_API_KEY) {
+    logger.warn(`${ENRICH_QUEUE} disabled: ANTHROPIC_API_KEY is not set`);
+  } else {
+    // The SDK retries 429/5xx itself; the queue retries anything that still fails.
+    const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 2, timeout: 180_000 });
+    await registerJob(
+      boss,
+      ENRICH_QUEUE,
+      enrichListingSchema,
+      createEnrichListingHandler({
+        db: database.db,
+        anthropic,
+        dailyBudgetUsd: env.ANTHROPIC_DAILY_BUDGET_USD,
+      }),
+      { logger },
+    );
+    // Polling always runs so batches submitted earlier finish even after switching modes.
+    await registerJob(
+      boss,
+      BATCH_POLL_QUEUE,
+      batchPollSchema,
+      createBatchPollHandler({ db: database.db, anthropic }),
+      {
+        logger,
+      },
+    );
+    await boss.schedule(BATCH_POLL_QUEUE, "*/10 * * * *", {}, { tz: "UTC" });
+    if (env.AI_ENRICH_MODE === "batch") {
+      await registerJob(
+        boss,
+        BATCH_SUBMIT_QUEUE,
+        batchSubmitSchema,
+        createBatchSubmitHandler({ db: database.db, anthropic, maxItems: env.AI_BATCH_MAX_ITEMS }),
+        { logger },
+      );
+      await boss.schedule(BATCH_SUBMIT_QUEUE, "*/30 * * * *", {}, { tz: "UTC" });
+    } else {
+      await boss.unschedule(BATCH_SUBMIT_QUEUE);
+    }
+    logger.info(
+      { mode: env.AI_ENRICH_MODE, dailyBudgetUsd: env.ANTHROPIC_DAILY_BUDGET_USD },
+      "AI enrichment enabled",
+    );
+  }
 
   accepting = true;
   logger.info("worker ready");

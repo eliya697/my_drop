@@ -13,6 +13,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { aiGenerations } from "./ai";
@@ -31,6 +32,8 @@ export const supplierProducts = pgTable(
     externalId: text("external_id").notNull(),
     sourceUrl: text("source_url"),
     raw: jsonb("raw").notNull(),
+    /** The supplier-neutral product (SupplierProduct without `raw`) derived from `raw`. */
+    normalized: jsonb("normalized"),
     rawHash: text("raw_hash").notNull(),
     fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -137,10 +140,17 @@ export const productImages = pgTable(
     sourceUrl: text("source_url").notNull(),
     /** R2 object key after download and optimization. */
     storageKey: text("storage_key"),
+    width: integer("width"),
+    height: integer("height"),
     altText: text("alt_text"),
     position: integer("position").notNull().default(0),
+    /** Set when the image was permanently rejected (bad host, not an image, too small). */
+    failedReason: text("failed_reason"),
   },
-  (t) => [index("product_images_product_id_idx").on(t.productId, t.position)],
+  (t) => [
+    index("product_images_product_id_idx").on(t.productId, t.position),
+    unique("product_images_product_source_key").on(t.productId, t.sourceUrl),
+  ],
 );
 
 export const pricingRules = pgTable(
@@ -149,7 +159,10 @@ export const pricingRules = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     /** 'global' | 'category:<name>' | 'product:<uuid>' */
     scope: text("scope").notNull().default("global"),
+    /** Hard floor: minimum profit as % of revenue after VAT (the pricing engine's minMarginRate). */
     targetMarginPct: numeric("target_margin_pct", { precision: 5, scale: 2 }).notNull(),
+    /** Desired profit as % of landed cost (the pricing engine's markupRate). */
+    markupPct: numeric("markup_pct", { precision: 6, scale: 2 }).notNull().default("60.00"),
     minProfitMinor: integer("min_profit_minor").notNull(),
     positioningMult: jsonb("positioning_mult")
       .$type<PositioningMultipliers>()
@@ -159,6 +172,10 @@ export const pricingRules = pgTable(
     isActive: boolean("is_active").notNull().default(true),
   },
   (t) => [
+    // Exactly one active rule per scope, so pricing never depends on row order.
+    uniqueIndex("pricing_rules_active_scope_key")
+      .on(t.scope)
+      .where(sql`${t.isActive}`),
     check("pricing_rules_scope_check", sql`${t.scope} ~ '^(global|category:.+|product:[0-9a-f-]{36})$'`),
     check("pricing_rules_margin_range", sql`${t.targetMarginPct} >= 0 and ${t.targetMarginPct} < 100`),
   ],

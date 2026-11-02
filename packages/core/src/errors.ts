@@ -48,3 +48,35 @@ export class InvalidPricingInputError extends DomainError {
     super(`pricing input ${field} ${reason}`);
   }
 }
+
+export class EntityNotFoundError extends DomainError {
+  readonly code = "ENTITY_NOT_FOUND";
+
+  constructor(
+    readonly entity: string,
+    readonly id: string,
+  ) {
+    super(`${entity} ${id} not found`);
+  }
+}
+
+/**
+ * The record changed between the caller reading it and writing it (optimistic lock failure).
+ * Callers should reload and re-decide — never blindly retry the same write.
+ */
+export class ConcurrentModificationError extends DomainError {
+  readonly code = "CONCURRENT_MODIFICATION";
+
+  constructor(
+    readonly entity: string,
+    readonly id: string,
+    readonly expected: { status: string; version?: number },
+    readonly actual: { status: string; version: number },
+  ) {
+    super(
+      `${entity} ${id}: expected status ${expected.status}` +
+        (expected.version !== undefined ? ` at version ${expected.version}` : "") +
+        `, found ${actual.status} at version ${actual.version}`,
+    );
+  }
+}

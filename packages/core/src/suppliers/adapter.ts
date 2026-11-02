@@ -5,6 +5,7 @@ import type {
   LowestPriceVariant,
   LowestPriceVariantQuery,
   ShippingQuote,
+  ShippingQuoteQuery,
   StockCheck,
   SupplierOrder,
   SupplierProduct,
@@ -13,18 +14,20 @@ import type {
 } from "./types";
 
 /**
- * The boundary between the domain and any supplier (AliExpress, CJ, a local warehouse).
+ * Read side of a supplier (AliExpress, CJ, a local warehouse): catalog, shipping, stock.
  * Implementations live in packages/adapters and must:
  *  - return amounts as integer minor units with an explicit currency,
- *  - throw only `SupplierError` subclasses (classified as retryable or not),
- *  - make `createSupplierOrder` idempotent on `idempotencyKey`.
+ *  - throw only `SupplierError` subclasses (classified as retryable or not).
  */
-export interface SupplierAdapter {
+export interface SupplierCatalog {
   /** Stable identifier stored in `products.supplier`, e.g. "aliexpress". */
   readonly name: string;
 
   /** Full product with variants; used by import and periodic re-sync. */
   getProduct(externalProductId: string, shipTo: CountryCode): Promise<SupplierProduct>;
+
+  /** Every shipping option the supplier offers for one SKU to `shipTo`. */
+  quoteShipping(query: ShippingQuoteQuery): Promise<ShippingQuote[]>;
 
   /**
    * The in-stock variant with the lowest landed cost (unit cost × quantity + shipping) to
@@ -35,6 +38,14 @@ export interface SupplierAdapter {
 
   /** Live stock and unit cost for one SKU — called immediately before placing an order. */
   checkStock(externalProductId: string, skuId: string, quantity: number): Promise<StockCheck>;
+}
+
+/**
+ * Write side of a supplier: placing and following orders. `createSupplierOrder` must be
+ * idempotent on `idempotencyKey`.
+ */
+export interface SupplierFulfillment {
+  readonly name: string;
 
   /** Places the order with the supplier. Retrying with the same idempotency key is safe. */
   createSupplierOrder(input: CreateSupplierOrderInput): Promise<SupplierOrder>;
@@ -43,6 +54,11 @@ export interface SupplierAdapter {
   getSupplierOrder(externalOrderId: string): Promise<SupplierOrder>;
 
   getTrackingInfo(externalOrderId: string): Promise<TrackingInfo>;
+}
+
+/** A supplier we can both source from and place orders with. */
+export interface SupplierAdapter extends SupplierCatalog, SupplierFulfillment {
+  readonly name: string;
 }
 
 /**

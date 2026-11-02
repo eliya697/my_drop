@@ -1,0 +1,45 @@
+{
+  "_source": "Official example response for aliexpress.ds.freight.query (openservice.aliexpress.com API reference), extended with a free untracked option and a malformed fee.",
+  "result": {
+    "msg": "Call succeeds",
+    "code": "200",
+    "success": "true",
+    "delivery_options": [
+      {
+        "code": "CAINIAO_FULFILLMENT_STD",
+        "shipping_fee_currency": "USD",
+        "free_shipping": "false",
+        "guaranteed_delivery_days": "100",
+        "max_delivery_days": "40",
+        "tracking": "true",
+        "shipping_fee_format": "US $1.99",
+        "company": "AliExpress Selection Standard",
+        "ship_from_country": "CN",
+        "min_delivery_days": "20",
+        "available_stock": "100",
+        "shipping_fee_cent": "1.99"
+      },
+      {
+        "code": "CAINIAO_SUPER_ECONOMY",
+        "shipping_fee_currency": "USD",
+        "free_shipping": "true",
+        "max_delivery_days": "60",
+        "min_delivery_days": "30",
+        "tracking": "false",
+        "company": "Cainiao Super Economy",
+        "shipping_fee_cent": "0"
+      },
+      {
+        "code": "BROKEN_FEE",
+        "shipping_fee_currency": "USD",
+        "free_shipping": "false",
+        "max_delivery_days": "15",
+        "min_delivery_days": "10",
+        "tracking": "true",
+        "shipping_fee_cent": "N/A"
+      }
+    ]
+  },
+  "code": "0",
+  "request_id": "0ba2887315178178017221014"
+}

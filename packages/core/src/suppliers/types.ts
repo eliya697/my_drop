@@ -29,15 +29,27 @@ export type SupplierProduct = {
   attributes: Readonly<Record<string, string>>;
   variants: readonly SupplierVariant[];
   sellerId: string;
+  /** False when the supplier has delisted the product or it cannot ship to the requested country. */
+  available: boolean;
   rating?: number;
   ordersCount?: number;
   /** The full upstream payload, persisted as an immutable snapshot. */
   raw: unknown;
 };
 
+export type ShippingQuoteQuery = {
+  externalProductId: string;
+  skuId: string;
+  quantity: number;
+  shipTo: CountryCode;
+};
+
 export type ShippingQuote = {
   skuId: string;
+  /** Supplier's service code, passed back when placing the order (e.g. "CAINIAO_FULFILLMENT_STD"). */
   method: string;
+  /** Human-readable carrier/service name. */
+  carrier?: string;
   cost: Money;
   daysMin: number;
   daysMax: number;
